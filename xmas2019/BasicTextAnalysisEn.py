@@ -2,22 +2,21 @@ import codecs
 from string import punctuation  
 from nltk import word_tokenize
 from nltk.corpus import stopwords
-from nltk.stem import WordNetLemmatizer, SnowballStemmer
+from nltk.stem import SnowballStemmer
 from neo4j import GraphDatabase
 
-wn_l = WordNetLemmatizer()
 stemmer = SnowballStemmer("english")
 stopwords = stopwords.words('english')
 non_words = list(punctuation)
 
 def load_data(tx, country):
     cypher = " CREATE (sp:Speech { country: $country}) WITH sp" \
-             " UNWIND $list as entry MERGE (tk:Token { id: entry.token}) " \
-             " MERGE (tk)-[:USED_IN { freq: entry.count }]->(sp)" \
-             " WITH tk, entry.words as words  UNWIND words AS word " \
+             " UNWIND $list as entry MERGE (st:Stem { id: entry.stem}) " \
+             " MERGE (st)-[:USED_IN { freq: entry.count }]->(sp)" \
+             " WITH st, entry.words as words  UNWIND words AS word " \
              " MERGE (w:Word { id: word })" \
-             " MERGE (w)-[:HAS_TOKEN]->(tk)" \
-             " RETURN COUNT( DISTINCT tk) AS tokenCount ;"
+             " MERGE (w)-[:HAS_STEM]->(st)" \
+             " RETURN COUNT( DISTINCT st) AS stemCount ;"
     write_result = tx.run(cypher, list=process_file(country), country=country)
     print(write_result)
 
@@ -39,7 +38,7 @@ def process_file(country):
     for tk in tokens:
         tokensAndStems.append([tk, stemmer.stem(tk)])
 
-    # aggregate words on tokens
+    # aggregate tokens on stems
     counts = dict()
     collects = dict()
     for pair in tokensAndStems:
@@ -51,7 +50,7 @@ def process_file(country):
             collects[pair[1]] = [pair[0]]
 
     # return as param list
-    return [ { 'token': key, 'count': value, 'words': collects[key] } for key, value in counts.items()]
+    return [ { 'stem': key, 'count': value, 'words': collects[key] } for key, value in counts.items()]
 
 
 uri = "bolt://localhost:7687"
